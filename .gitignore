@@ -1,0 +1,17 @@
+# Python caches
+__pycache__/
+*.py[cod]
+*$py.class
+.env
+
+# Virtual environments
+venv/
+env/
+.venv/
+
+# AI Model checkpoints
+*.zip
+*.pkl
+
+# OS files
+.DS_Store
