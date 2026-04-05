@@ -1,0 +1,40 @@
+# ---------------------------------------------------------
+# Meta OpenEnv Standard Configuration Manifest
+# ---------------------------------------------------------
+
+env_name: "LLMRouterEnv"
+version: "1.0.0"
+description: "An MLOps API Gateway simulation where an agent routes user prompts to LLMs of varying size to optimize quality and cost."
+author: "Hackathon Team"
+
+# The Python import path to the Gym environment class
+entry_point: "env:LLMRouterEnv"
+
+# ---------------------------------------------------------
+# Task Definitions (Must match the 3 tiers we designed)
+# ---------------------------------------------------------
+tasks:
+  - id: "llm-router-easy"
+    description: "Generous budget with a short queue. Tests baseline agent survival."
+    config:
+      num_prompts: 20
+      initial_budget: 5.0
+
+  - id: "llm-router-medium"
+    description: "Standard budget and standard queue. Tests ability to balance cost vs quality."
+    config:
+      num_prompts: 50
+      initial_budget: 1.0
+
+  - id: "llm-router-hard"
+    description: "Starvation budget. Agent must perfectly optimize every token to survive."
+    config:
+      num_prompts: 50
+      initial_budget: 0.3
+
+# ---------------------------------------------------------
+# Evaluation Grader 
+# ---------------------------------------------------------
+grader:
+  # The Python import path to the grading function
+  entry_point: "tasks:RouterGrader.grade"
