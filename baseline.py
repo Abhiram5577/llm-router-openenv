@@ -3,7 +3,7 @@ from stable_baselines3 import PPO
 from stable_baselines3.common.env_checker import check_env
 
 # Import our custom OpenEnv files
-from env import LLMRouterEnv
+from env import LlamaRouterEnv
 from tasks import get_task_and_grader
 
 def run_baseline():
@@ -15,7 +15,7 @@ def run_baseline():
     print(f"--- Loading LLM Router Environment ({difficulty.upper()}) ---")
 
     # 2. Initialize Environment
-    env = LLMRouterEnv(config=config)
+    env = LlamaRouterEnv(config=config)
 
     # 3. Strict API Compliance Check (Crucial for OpenEnv/Hackathons)
     print("Running Stable Baselines 3 Environment Checker...")
@@ -56,8 +56,8 @@ def run_baseline():
     print("====================================")
     print(f"Task ID:          {config['task_id']}")
     print(f"Cumulative Reward: {total_reward:.2f}")
-    print(f"Budget Remaining: ${info.get('remaining_budget', 0):.2f} / ${config['initial_budget']:.2f}")
-    print(f"Prompts Routed:   {info.get('current_step', 0)} / {len(info.get('prompts', []))}")
+    print(f"Budget Remaining: ${info.get('available_funds', 0):.2f} / ${info.get('total_budget', config['budget']):.2f}")
+    print(f"Prompts Routed:   {info.get('step_idx', 0)} / {len(info.get('queue', []))}")
     print(f"OpenEnv Score:    {final_score:.2f} / 1.00")
     print("====================================")
 

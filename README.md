@@ -1,38 +1,27 @@
-# 🚦 LLM Gateway Router (OpenEnv)
+# 🦙 Llama Inference Gateway: SLA Controller (OpenEnv)
 
-A complete, OpenEnv-compliant reinforcement learning environment simulating an MLOps API Gateway.
+An OpenEnv-compliant reinforcement learning environment simulating a production-grade inference routing system for the Meta Llama ecosystem.
 
-## 📖 Environment Description
+## 🎯 The Problem: The Over-Provisioning Trap
+In production AI, routing every user prompt to `Llama 3.1 70B` ensures high quality but bankrupts the infrastructure budget. Conversely, static routing to smaller models causes unacceptable hallucination rates on complex reasoning tasks. 
 
-In production AI applications, routing every user request to a massive model (like Llama 3 70B) is too expensive, but routing everything to a small model yields poor answers for complex questions. 
+**LlamaRouterEnv** frames inference routing as an episodic reinforcement learning problem. The agent acts as an API gateway, dynamically assessing prompt complexity and routing traffic across three Llama variants to maximize SLA compliance while surviving strict budget constraints.
 
-**LLMRouterEnv** is an episodic environment where an AI agent acts as a dynamic router. The agent receives a stream of incoming user prompts. Its goal is to maximize the total quality of responses across the entire traffic burst without exceeding a strict rolling financial budget. The agent must learn to match prompt complexity to model capability while managing cost.
+## 🧬 Architectural Realism
+Unlike static "toy" environments, this project models real-world MLOps friction:
+1. **Traffic Surges:** The `hard` task simulates sudden spikes in high-complexity reasoning requests.
+2. **Probabilistic Failure:** Models don't have hard cutoffs. A 1B model might occasionally succeed on a hard prompt, and a 70B model might occasionally fail, forcing the agent to learn risk management.
+3. **Network Jitter:** Inference costs fluctuate slightly per step, simulating spot-instance pricing and varying token-generation lengths.
 
 ## 🕹️ Action Space
-
-The action space is a `Discrete(3)` space representing the model routing choice:
-
-| Action | Choice | Cost | Capability Limit |
+| Action | Variant | Base Cost ($) | Capability Profile |
 | :--- | :--- | :--- | :--- |
-| `0` | **Small Model** | $0.0001 / token | Fails on complexity > 0.3 |
-| `1` | **Medium Model** | $0.0005 / token | Fails on complexity > 0.7 |
-| `2` | **Large Model** | $0.0015 / token | Handles all complexity |
+| `0` | **Llama 3.2 1B** | $0.0001 / token | Optimized for trivial extraction |
+| `1` | **Llama 3.1 8B** | $0.0003 / token | General purpose workhorse |
+| `2` | **Llama 3.1 70B**| $0.0015 / token | Advanced reasoning and SLA guarantee |
 
-## 👁️ Observation Space
-
-The observation space is a `Box(low=0.0, high=1.0, shape=(3,))` float array representing normalized telemetry data:
-
-| Index | Name | Range | Description |
-| :--- | :--- | :--- | :--- |
-| `0` | `norm_length` | `[0.0, 1.0]` | The token length of the current prompt (normalized to max length). |
-| `1` | `complexity` | `[0.0, 1.0]` | The semantic difficulty of the current prompt. |
-| `2` | `norm_budget` | `[0.0, 1.0]` | The remaining episode budget (normalized to initial budget). |
-
-## 🛠️ Setup Instructions
-
-### Option A: Local Installation
-
-1. Clone this repository and navigate to the folder.
-2. Install the required dependencies:
-   ```bash
-   pip install -r requirements.txt
+## 🚀 Setup & Evaluation
+Run the interactive telemetry dashboard to manually route traffic:
+```bash
+pip install -r requirements.txt
+python app.py

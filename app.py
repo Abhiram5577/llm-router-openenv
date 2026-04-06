@@ -1,182 +1,75 @@
 import gradio as gr
-from typing import Optional, Tuple
-from env import LLMRouterEnv
+import pandas as pd
+from env import LlamaRouterEnv
 from tasks import get_task_and_grader
 
-# Global state management (since Gradio can't serialize Gym environments)
-# We store difficulty + environment state separately
-current_env: Optional[LLMRouterEnv] = None
-current_difficulty: str = "medium"
+# Global state to track history for the charts
+history_df = pd.DataFrame(columns=["step", "budget", "model_used"])
 
-
-def start_episode(difficulty: str) -> Tuple[str, str, str, str, str]:
-    """Initializes the environment based on selected difficulty."""
-    global current_env, current_difficulty
+def start_episode(difficulty):
+    global history_df
+    history_df = pd.DataFrame(columns=["step", "budget", "model_used"])
     
-    current_difficulty = difficulty
     config, _ = get_task_and_grader(difficulty)
-    current_env = LLMRouterEnv(config=config)
-    obs, info = current_env.reset()
-    
-    return update_ui_display()
+    env = LlamaRouterEnv(config=config)
+    env.reset()
+    return update_ui(env)
 
+def step_episode(env, action_name):
+    global history_df
+    if env is None or env.state.is_exhausted:
+        return [env, "Episode finished!"] + [gr.update()] * 3
+    
+    action_map = {"Llama 3.2 1B": 0, "Llama 3.1 8B": 1, "Llama 3.1 70B": 2}
+    action = action_map[action_name]
+    
+    obs, reward, terminated, truncated, info = env.step(action)
+    
+    # Record telemetry for charts
+    new_row = {"step": env.state.step_idx, "budget": env.state.available_funds, "model_used": action_name}
+    history_df = pd.concat([history_df, pd.DataFrame([new_row])], ignore_index=True)
+    
+    return update_ui(env)
 
-def step_episode(action_idx: int) -> Tuple[str, str, str, str, str]:
-    """Takes a single action in the environment and updates the UI."""
-    global current_env
+def update_ui(env):
+    state = env.state.model_dump()
+    done = state["step_idx"] >= len(state["queue"]) or state["available_funds"] <= 0
     
-    if current_env is None or current_env.env_state.is_done:
-        return (
-            "🛑 Episode finished! Please reset.",
-            "$0.00 / $0.00",
-            "Queue Empty",
-            "Progress: 0/0",
-            "Please start a new episode"
-        )
+    budget_txt = f"${state['available_funds']:.4f} / ${state['total_budget']:.2f}"
+    status = "🛑 EPISODE OVER" if done else f"✅ Active Queue: {state['step_idx']}/{len(state['queue'])}"
     
-    # Execute the action
-    obs, reward, terminated, truncated, info = current_env.step(action_idx)
+    # Generate Charts
+    line_plot = gr.LinePlot(history_df, x="step", y="budget", title="Budget Burn Down", width=400, height=300) if not history_df.empty else gr.update()
+    bar_plot = gr.BarPlot(history_df, x="model_used", y="step", title="Model Usage Distribution", width=400, height=300, aggregate="count") if not history_df.empty else gr.update()
     
-    return update_ui_display()
+    return env, status, budget_txt, line_plot, bar_plot
 
-
-def update_ui_display() -> Tuple[str, str, str, str, str]:
-    """Extract environment state and format UI elements."""
-    global current_env
+with gr.Blocks(theme=gr.themes.Monochrome()) as demo:
+    gr.Markdown("# 🦙 Llama Inference Gateway: SLA Controller")
+    env_state = gr.State(None)
     
-    if current_env is None:
-        return (
-            "Waiting to start...",
-            "$0.00 / $0.00",
-            "No prompt",
-            "Progress: 0/0",
-            "Please select difficulty and click Start"
-        )
-    
-    state = current_env.state()
-    is_done = current_env.env_state.is_done or state.get("remaining_budget", 0) <= 0
-    
-    # Status message
-    if is_done:
-        status = "🛑 EPISODE OVER - Click Start to begin a new episode"
-    else:
-        status = "✅ Current prompt ready - Select a model"
-    
-    # Budget display
-    budget_text = f"${state.get('remaining_budget', 0):.4f} / ${state.get('total_budget', 1):.2f}"
-    
-    # Current prompt info
-    if not is_done and state.get("prompts"):
-        current_prompt = state["prompts"][state["current_step"]]
-        prompt_text = f"**Tokens:** {current_prompt['length_tokens']} | **Complexity:** {current_prompt['complexity']:.2f}/1.0"
-    else:
-        prompt_text = "Queue Empty or Bankrupt - Episode Complete"
-    
-    # Progress
-    progress_text = f"Prompt {state.get('current_step', 0)} of {len(state.get('prompts', []))}"
-    
-    # Last reward (if available)
-    if state.get('current_step', 0) > 0 and not is_done:
-        rewards_info = "Ready for next action"
-    else:
-        rewards_info = "Episode in progress"
-    
-    return status, budget_text, prompt_text, progress_text, rewards_info
-
-
-# ═══════════════════════════════════════════════════════════════
-# GRADIO UI LAYOUT
-# ═══════════════════════════════════════════════════════════════
-with gr.Blocks(title="LLM Router OpenEnv", theme=gr.themes.Soft()) as demo:
-    gr.Markdown("""
-# 🚦 LLM Gateway Router (OpenEnv Demo)
-
-You are the AI routing agent. For each incoming prompt, select which model to use:
-- **Small Model (Cheap)**: Low cost, works for simple tasks
-- **Medium Model (Balanced)**: Moderate cost, handles most tasks
-- **Large Model (Expensive)**: High cost, handles everything
-
-**Goal**: Process all prompts while staying within budget and maintaining quality!
-    """)
-    
-    # Control Section
     with gr.Row():
-        with gr.Column():
-            difficulty_dropdown = gr.Dropdown(
-                choices=["easy", "medium", "hard"],
-                value="medium",
-                label="🎯 Task Difficulty",
-                info="Easy: $5 budget. Medium: $1 budget. Hard: $0.30 budget."
-            )
-            start_btn = gr.Button("▶️ Start / Reset Episode", variant="primary", size="lg")
-            
-        with gr.Column():
-            status_display = gr.Markdown("### Status\nWaiting to start...")
-            budget_display = gr.Markdown("### Budget\n$0.00 / $0.00")
+        diff_drop = gr.Dropdown(["easy", "medium", "hard"], value="medium", label="Traffic Scenario")
+        btn_start = gr.Button("🔄 Initialize Gateway")
     
-    # Current Prompt Section
-    gr.Markdown("### 📩 Current Incoming Prompt")
-    prompt_display = gr.Markdown("No prompt yet")
-    progress_display = gr.Markdown("Progress: 0/0")
-    
-    # Action Buttons
-    gr.Markdown("### 🧠 Select Routing Action")
     with gr.Row():
-        btn_small = gr.Button("💰 Small Model (Cheap)", scale=1)
-        btn_medium = gr.Button("⚖️ Medium Model (Balanced)", scale=1)
-        btn_large = gr.Button("🚀 Large Model (Expensive)", scale=1)
-    
-    reward_display = gr.Markdown("### Info\nReady for next decision")
-    
-    gr.Markdown("""
----
-### How Scoring Works:
-- **Survive**: Process all prompts without running out of budget
-- **Quality**: Select appropriate models (avoid cheap models for complex tasks)
-- **Efficiency**: Save budget by using cheap models when suitable
-- **Score**: 0.0 (failed) to 1.0 (perfect)
-    """)
-    
-    # Event Bindings
-    start_btn.click(
-        fn=start_episode,
-        inputs=[difficulty_dropdown],
-        outputs=[status_display, budget_display, prompt_display, progress_display, reward_display],
-        queue=False
-    )
-    
-    # Action buttons - pass action index (0, 1, 2)
-    btn_small.click(
-        fn=lambda: step_episode(0),
-        outputs=[status_display, budget_display, prompt_display, progress_display, reward_display],
-        queue=False
-    )
-    
-    btn_medium.click(
-        fn=lambda: step_episode(1),
-        outputs=[status_display, budget_display, prompt_display, progress_display, reward_display],
-        queue=False
-    )
-    
-    btn_large.click(
-        fn=lambda: step_episode(2),
-        outputs=[status_display, budget_display, prompt_display, progress_display, reward_display],
-        queue=False
-    )
+        status_disp = gr.Markdown("Waiting to start...")
+        budget_disp = gr.Markdown("Budget: $0.00")
+        
+    with gr.Row():
+        plot_burn = gr.LinePlot()
+        plot_usage = gr.BarPlot()
 
+    gr.Markdown("### Manual Override (Route Current Prompt)")
+    with gr.Row():
+        btn_1b = gr.Button("Route to Llama 3.2 1B")
+        btn_8b = gr.Button("Route to Llama 3.1 8B")
+        btn_70b = gr.Button("Route to Llama 3.1 70B")
+
+    btn_start.click(start_episode, inputs=[diff_drop], outputs=[env_state, status_disp, budget_disp, plot_burn, plot_usage])
+    btn_1b.click(step_episode, inputs=[env_state, gr.Textbox(value="Llama 3.2 1B", visible=False)], outputs=[env_state, status_disp, budget_disp, plot_burn, plot_usage])
+    btn_8b.click(step_episode, inputs=[env_state, gr.Textbox(value="Llama 3.1 8B", visible=False)], outputs=[env_state, status_disp, budget_disp, plot_burn, plot_usage])
+    btn_70b.click(step_episode, inputs=[env_state, gr.Textbox(value="Llama 3.1 70B", visible=False)], outputs=[env_state, status_disp, budget_disp, plot_burn, plot_usage])
 
 if __name__ == "__main__":
-    # Server configuration explicitly for Hugging Face Spaces / Docker
-    print("\n" + "="*60)
-    print("🌐 LLM Router OpenEnv - Web UI")
-    print("="*60)
-    print("\n🚀 Server starting...")
-    print("📍 Open browser to: http://localhost:7860")
-    print("\n" + "="*60 + "\n")
-    
-    demo.launch(
-        server_name="0.0.0.0", 
-        server_port=7860,
-        share=False,
-        show_error=True
-    )
+    demo.launch(server_name="0.0.0.0", server_port=7860)

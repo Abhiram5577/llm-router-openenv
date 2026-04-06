@@ -1,6 +1,6 @@
 import gymnasium as gym
 from stable_baselines3 import PPO
-from env import LLMRouterEnv
+from env import LlamaRouterEnv
 from tasks import get_task_and_grader
 
 def run_automated_evaluation():
@@ -18,7 +18,7 @@ def run_automated_evaluation():
     for diff in difficulties:
         print(f"--- [ Booting Task: {diff.upper()} ] ---")
         config, grader = get_task_and_grader(diff)
-        env = LLMRouterEnv(config=config)
+        env = LlamaRouterEnv(config=config)
         
         # Train a fresh, isolated agent for this specific task
         print(f"Training PPO Agent on {diff.upper()} (5,000 steps)...")
