@@ -1,17 +1,22 @@
-# Python caches
-__pycache__/
-*.py[cod]
-*$py.class
+# Sensitive Keys (NEVER UPLOAD THESE)
 .env
 
 # Virtual environments
 venv/
-env/
 .venv/
+env/
 
-# AI Model checkpoints
+# Python caches & compiled files
+__pycache__/
+*.py[cod]
+*$py.class
+
+# AI Model checkpoints & data
 *.zip
 *.pkl
 
-# OS files
+# Node modules (just in case!)
+node_modules/
+
+# OS generated files
 .DS_Store

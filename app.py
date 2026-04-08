@@ -39,8 +39,8 @@ def update_ui(env):
     status = "🛑 EPISODE OVER" if done else f"✅ Active Queue: {state['step_idx']}/{len(state['queue'])}"
     
     # Generate Charts
-    line_plot = gr.LinePlot(history_df, x="step", y="budget", title="Budget Burn Down", width=400, height=300) if not history_df.empty else gr.update()
-    bar_plot = gr.BarPlot(history_df, x="model_used", y="step", title="Model Usage Distribution", width=400, height=300, aggregate="count") if not history_df.empty else gr.update()
+    line_plot = gr.LinePlot(history_df, x="step", y="budget", title="Budget Burn Down") if not history_df.empty else gr.update()
+    bar_plot = gr.BarPlot(history_df, x="model_used", y="step", title="Model Usage Distribution", y_aggregate="count") if not history_df.empty else gr.update()
     
     return env, status, budget_txt, line_plot, bar_plot
 

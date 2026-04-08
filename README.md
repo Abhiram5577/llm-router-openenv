@@ -1,3 +1,13 @@
+---
+title: Llama Inference Gateway
+emoji: 🦙
+colorFrom: blue
+colorTo: indigo
+sdk: docker
+app_port: 7860
+tags:
+  - openenv
+---
 # 🦙 Llama Inference Gateway: SLA Controller (OpenEnv)
 
 An OpenEnv-compliant reinforcement learning environment simulating a production-grade inference routing system for the Meta Llama ecosystem.
