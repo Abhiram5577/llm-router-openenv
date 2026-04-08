@@ -1,6 +1,6 @@
 import uvicorn
 from openenv.core.env_server.http_server import create_app
-from env import LlamaRouterEnv
+from ..env import LlamaRouterEnv
 
 # Wrap our environment in the standard OpenEnv HTTP server
 app = create_app(LlamaRouterEnv)
