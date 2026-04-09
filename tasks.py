@@ -25,7 +25,7 @@ class SLAGrader:
     """Evaluates the routing agent on production Service Level Agreements."""
     
     @staticmethod
-    def grade(final_state: Dict[str, Any]) -> int:
+    def grade(final_state: Dict[str, Any]) -> float:
         funds = final_state.get("available_funds", 0.0)
         total_budget = final_state.get("total_budget", 1.0)
         step_idx = final_state.get("step_idx", 0)
@@ -36,8 +36,8 @@ class SLAGrader:
         survival_score = survival_ratio * 0.4
         
         if funds <= 0.0 or step_idx < total_prompts:
-            # Bankrupt before finishing
-            return 0
+            # Bankrupt before finishing: return minimum (0.01, not 0.0)
+            return 0.01
             
         # 2. SLA / Quality Score (30%)
         # In a real system, we'd track exactly how many prompts failed the probabilistic check.
@@ -48,8 +48,11 @@ class SLAGrader:
         efficiency_ratio = funds / total_budget
         efficiency_score = efficiency_ratio * 0.3
         
-        # Completed all tasks with funds remaining: return 1
-        return 1
+        # Base completion bonus (30%) + Survival (40%) + Efficiency (up to 30%)
+        raw_score = 0.3 + 0.4 + efficiency_score
+        
+        # Clamp strictly to (0.01, 0.99) - exclusive of 0.0 and 1.0
+        return max(0.01, min(0.99, raw_score))
 
 def get_task_and_grader(difficulty: str) -> tuple[Dict[str, Any], SLAGrader]:
     diff_map = {
