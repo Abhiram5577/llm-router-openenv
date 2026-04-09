@@ -33,7 +33,12 @@ def run_inference():
         print("❌ ERROR: HF_TOKEN not found. Check your Space Secrets!", flush=True)
         return
 
-    client = OpenAI(base_url=API_BASE_URL, api_key=HF_TOKEN)
+    try:
+        client = OpenAI(base_url=API_BASE_URL, api_key=HF_TOKEN)
+    except Exception as e:
+        print(f"❌ ERROR: Failed to initialize OpenAI client: {e}", flush=True)
+        return
+
     tasks = ["easy", "medium", "hard"]
     
     for task in tasks:
@@ -52,6 +57,9 @@ def run_inference():
                 system_prompt = "You are an AI Inference Gateway. Reply with ONLY 0, 1, or 2."
                 user_prompt = f"Observation: [Length={obs[0]:.2f}, Complexity={obs[1]:.2f}, Budget={obs[2]:.2f}]. Action:"
                 
+                action = 2  # Default fallback action
+                error_msg = None
+                
                 try:
                     response = client.chat.completions.create(
                         model=MODEL_NAME,
@@ -60,23 +68,28 @@ def run_inference():
                         temperature=0.0
                     )
                     action_str = response.choices[0].message.content.strip()
-                    # Extract the first digit found
-                    action = int(''.join(filter(str.isdigit, action_str))[0])
-                except Exception as e:
-                    action = 2 # Fallback
-                    print(f"AI Error: {e}", flush=True)
+                    # Extract the first digit found (wrapped in try/except for parsing errors)
+                    try:
+                        action = int(''.join(filter(str.isdigit, action_str))[0])
+                    except (IndexError, ValueError) as parse_err:
+                        action = 2  # Fallback to action 2 if parsing fails
+                        error_msg = f"Parse error: {parse_err}"
+                        print(f"⚠️  Parsing Error: {error_msg}", flush=True)
+                except Exception as api_err:
+                    action = 2  # Fallback to action 2 on API errors
+                    error_msg = f"API error: {api_err}"
+                    print(f"⚠️  Network/API Error: {error_msg}", flush=True)
                     
                 obs, reward, terminated, truncated, info = env.step(action)
                 done = terminated or truncated
                 rewards.append(float(reward))
-                log_step(step=step_count, action=str(action), reward=reward, done=done, error=None)
+                log_step(step=step_count, action=str(action), reward=reward, done=done, error=error_msg)
                 
             final_score = grader.grade(info)
             log_end(success=(final_score > 0.0), steps=step_count, score=final_score, rewards=rewards)
             env.close()
         except Exception as e:
-            print(f"Loop Error: {e}", flush=True)
+            print(f"❌ Task Error ({task}): {e}", flush=True)
 
-# 🚀 CRITICAL FIX: No server code here! Just run the script directly.
 if __name__ == "__main__":
     run_inference()
