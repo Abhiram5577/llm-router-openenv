@@ -6,7 +6,8 @@ from env import LlamaRouterEnv
 from tasks import get_task_and_grader
 from dotenv import load_dotenv
 
-load_dotenv()  
+# 🚀 THE FIX: override=False ensures OpenEnv's injected keys always win
+load_dotenv(override=False)  
 
 # --- SCALER MANDATORY HELPER FUNCTIONS ---
 def log_start(task: str, env: str, model: str) -> None:
@@ -22,19 +23,24 @@ def log_end(success: bool, steps: int, score: float, rewards: List[float]) -> No
     print(f"[END] success={str(success).lower()} steps={steps} score={score:.3f} rewards={rewards_str}", flush=True)
 
 def run_inference():
-    # Use the 2026 router and free model suffix
-    API_BASE_URL = "https://router.huggingface.co/v1"
-    MODEL_NAME = "Qwen/Qwen2.5-7B-Instruct:hf-inference"
+    # Strictly pull the platform's injected variables
+    API_BASE_URL = os.environ.get("API_BASE_URL")
+    API_KEY = os.environ.get("API_KEY")
     
-    # Using your working environment variable or split token method
-    HF_TOKEN = os.getenv("HF_TOKEN") 
+    # Pull the model name if they inject it, otherwise fallback to our free one
+    MODEL_NAME = os.environ.get("MODEL_NAME", "Qwen/Qwen2.5-7B-Instruct:hf-inference")
 
-    if not HF_TOKEN:
-        print("❌ ERROR: HF_TOKEN not found. Check your Space Secrets!", flush=True)
+    if not API_BASE_URL or not API_KEY:
+        print("❌ ERROR: API_BASE_URL or API_KEY not found in environment!", flush=True)
         return
 
     try:
-        client = OpenAI(base_url=API_BASE_URL, api_key=HF_TOKEN)
+        # 🚀 THE FIX: Initialize strictly with proxy settings AND retry logic
+        client = OpenAI(
+            base_url=API_BASE_URL, 
+            api_key=API_KEY,
+            max_retries=3  # Handles transient proxy failures
+        )
     except Exception as e:
         print(f"❌ ERROR: Failed to initialize OpenAI client: {e}", flush=True)
         return
@@ -65,7 +71,8 @@ def run_inference():
                         model=MODEL_NAME,
                         messages=[{"role": "system", "content": system_prompt}, {"role": "user", "content": user_prompt}],
                         max_tokens=5,
-                        temperature=0.0
+                        temperature=0.0,
+                        timeout=30  # <-- ADD THIS
                     )
                     action_str = response.choices[0].message.content.strip()
                     # Extract the first digit found (wrapped in try/except for parsing errors)
