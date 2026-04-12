@@ -22,37 +22,29 @@ HARD_TASK_CONFIG = {
 }
 
 class SLAGrader:
-    """Evaluates the routing agent on production Service Level Agreements."""
+    """Maps final state to a continuous score in (0.01, 0.99]."""
     
     @staticmethod
     def grade(final_state: Dict[str, Any]) -> float:
         funds = final_state.get("available_funds", 0.0)
         total_budget = final_state.get("total_budget", 1.0)
         step_idx = final_state.get("step_idx", 0)
-        total_prompts = len(final_state.get("queue", []))
-        
-        # 1. Survival Score (40%)
-        survival_ratio = step_idx / max(1, total_prompts)
-        survival_score = survival_ratio * 0.4
+        queue = final_state.get("queue", [])
+        total_prompts = len(queue)
         
         if funds <= 0.0 or step_idx < total_prompts:
-            # Bankrupt before finishing: return minimum (0.01, not 0.0)
             return 0.01
-            
-        # 2. SLA / Quality Score (30%)
-        # In a real system, we'd track exactly how many prompts failed the probabilistic check.
-        # Since our env rewards encode failures as negative values, we assume surviving 
-        # means they met the bare minimum, but efficiency determines the rest.
         
-        # 3. Efficiency Score (30%)
+        total_tokens_used = sum(p.get("token_count", 0) for p in queue[:step_idx])
+        survival_ratio = step_idx / max(1, total_prompts)
+        base_quality_score = 0.1 + (0.8 * survival_ratio)
+        tokens_penalty = (total_tokens_used / 2048.0) * 0.15
         efficiency_ratio = funds / total_budget
-        efficiency_score = efficiency_ratio * 0.3
+        efficiency_bonus = efficiency_ratio * 0.1
+        continuous_score = base_quality_score - tokens_penalty + efficiency_bonus
+        final_score = max(0.01, min(0.99, continuous_score))
         
-        # Base completion bonus (30%) + Survival (40%) + Efficiency (up to 30%)
-        raw_score = 0.3 + 0.4 + efficiency_score
-        
-        # Clamp strictly to (0.01, 0.99) - exclusive of 0.0 and 1.0
-        return max(0.01, min(0.99, raw_score))
+        return final_score
 
 def get_task_and_grader(difficulty: str) -> tuple[Dict[str, Any], SLAGrader]:
     diff_map = {

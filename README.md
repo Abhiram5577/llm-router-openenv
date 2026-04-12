@@ -21,6 +21,7 @@ Unlike static RL environments, this project models real-world MLOps friction:
 1. **Traffic Surges:** Simulates sudden spikes in high-complexity reasoning requests.
 2. **Probabilistic Failure:** Models don't have hard cutoffs. A 1B model might occasionally succeed on a hard prompt, and a 70B model might occasionally fail, forcing the agent to learn risk management.
 3. **Network Jitter:** Inference costs fluctuate slightly per step, simulating spot-instance pricing and varying token-generation lengths.
+4. **Simulated Infrastructure Chaos:** Unlike standard routers that assume perfect API uptime, this environment simulates 70B endpoint network spikes (simulated_70b_latency). The RL agent must learn to detect latency jitter and autonomously failover to the 8B workhorse model to preserve SLA constraints, turning a standard routing problem into a dynamic survival environment.
 
 ## 🕹️ Action Space
 The environment routes traffic to one of three dynamic endpoints:

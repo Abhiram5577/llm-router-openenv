@@ -18,6 +18,8 @@ class GatewayState(BaseModel):
     available_funds: float
     total_budget: float
     accumulated_latency: float = 0.0
+    previous_failures: int = 0
+    simulated_70b_latency: float = 0.0
     
     @property
     def is_exhausted(self) -> bool:
